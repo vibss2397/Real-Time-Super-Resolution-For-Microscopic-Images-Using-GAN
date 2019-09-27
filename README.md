@@ -5,7 +5,7 @@ This project is an application of srgan, a network proposed for obtaining super 
 
 ### SRGAN Architecture
 ---
-![SRGAN](https://github.com/vibss2397/Real-Time-Super-Resolution-For-Microscopic-Images-Using-GAN.git/images_for_github/architecture.png)
+![SRGAN](images_for_github/architecture.png)
 ### Dataset
 The Human Protein Atlas Image Classification Challenge is a competition hosted in Kaggle, which
 encourages people to develop models which are able to classify proteins in microscopic images. For our
@@ -19,7 +19,7 @@ generate them in the order 1: microtubules only, 2: microtubules and nucleus sta
 nucleus staining and proteins, 4: microtubules, nucleus staining, protein and endoplasmic reticulum. This
 ensured a diversity of images obtained for training. A total of 2,000 images of (512 x 512) were obtained.
 
-![Data](https://github.com/vibss2397/Real-Time-Super-Resolution-For-Microscopic-Images-Using-GAN.git/images_for_github/data.png)
+![Data](images_for_github/data.png)
 ### Improvements in existing Architecture
 ---
 There were mainly 3 improvements we suggested in the architecture of the existing network : 
@@ -30,10 +30,10 @@ There were mainly 3 improvements we suggested in the architecture of the existin
 The reasoning behind these improvements are given in the paper and can also be found in the links in the references
 ### Qualitative Results
 We give 2 results here, one for our network generating SR images for test images of the dataset and then our network generating SR images for images from other domains
-![Test Data](https://github.com/vibss2397/Real-Time-Super-Resolution-For-Microscopic-Images-Using-GAN.git/images_for_github/testdata_results.png)
+![Test Data](images_for_github/testdata_results.png)
 
-![Cross Domain Data](https://github.com/vibss2397/Real-Time-Super-Resolution-For-Microscopic-Images-Using-GAN.git/images_for_github/crossresults.png)
+![Cross Domain Data](images_for_github/crossresults.png)
 ### Quantitative Results
-![Table](https://github.com/vibss2397/Real-Time-Super-Resolution-For-Microscopic-Images-Using-GAN.git/images_for_github/quant_results.png)
+![Table](images_for_github/quant_results.png)
 
-![Mean Opinion Score](https://github.com/vibss2397/Real-Time-Super-Resolution-For-Microscopic-Images-Using-GAN.git/images_for_github/mos.png)
+![Mean Opinion Score](images_for_github/mos.png)
