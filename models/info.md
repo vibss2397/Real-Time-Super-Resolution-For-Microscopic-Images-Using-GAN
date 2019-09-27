@@ -1,0 +1,1 @@
+All these models take input size of 64 and produce outputs of 256
