@@ -9,77 +9,76 @@ from gan_architecture import *
 from network_utils import *
 
 channels = 3
+image_shape = 512
 lr_height = 64             # Low resolution height
 lr_width = 64             # Low resolution width
 lr_shape = (lr_height, lr_width,3)
 hr_height = lr_height*4   # High resolution height
 hr_width = lr_width*4     # High resolution width
 hr_shape = (hr_height, hr_width, 3)
+nb_patches = (image_shape/hr_width)**2
+BATCH_SIZE = 2
 
-def train(epochs, batch_size, input_dir, output_dir, model_save_dir, number_of_images, train_test_ratio, downscale_factor = 4):
+def train(epochs, batch_size, input_dir, output_dir, number_of_images, train_test_ratio, downscale_factor = 4):
     global channels, lr_shape, hr_shape
     x_train, x_test, number_of_train_images = load_training_data(input_dir, '.png', number_of_images, train_test_ratio)  
-    loss = VGG_LOSS(hr_shape) 
+    vgg = _vgg(20)
     batch_count = int(number_of_images / batch_size)
     shape = lr_shape
-    generator = Generator(shape).generator(False, 'interpolate')
-    discriminator = Discriminator(hr_shape).discriminator(True)
-
-#     generator.load('./models/srgan+interpolation+improved_disc.hdf5')
-#     discriminator.load ('drive/srgan/model-4/dis_model_dif_20.h5')
-    optimizer = get_optimizer()
-    generator.compile(loss=loss.vgg_loss, optimizer=optimizer)
-
-    discriminator.compile(loss="binary_crossentropy", optimizer=optimizer)
-    gan = get_gan_network(discriminator, shape, generator, optimizer, loss.vgg_loss)
-
-#     loss_file = open(model_save_dir + 'losses.txt' , 'w+')
-#     loss_file.close()
+    gen = Generator(lr_shape).generator(64, False, 'interpolate')
+    disc = Discriminator(hr_shape).discriminator(True)
     
+    generator_optimizer = get_optimizer()
+    discriminator_optimizer = get_optimizer()
+    
+    checkpoint_dir = 'models-bn/'
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                    discriminator_optimizer=discriminator_optimizer,
+                                    generator=gen,
+                                    discriminator=disc)
+
+    mean_sq_error, mean_abs_error, binary_crossentropy = get_errors()
+    
+    pls_metric = tf.keras.metrics.Mean()
+    dls_metric = tf.keras.metrics.Mean()
+
     for e in range(epochs):
-       
-        print ('-'*15, 'Epoch %d' % e, '-'*15)
-        for _ in tqdm(range(500)):
+    print('epoch ', e)
+    for i in tqdm(range(1000)):
+        lr_image, hr_image = generate_train_batch(x_train, BATCH_SIZE, number_of_train_images)
+        pl, dl = train_step(lr_image, hr_image, gen, disc, generator_optimizer, discriminator_optimizer, 
+                                vgg, mean_sq_error, mean_abs_error, binary_crossentropy)
+        pls_metric(pl)
+        dls_metric(dl)
+        if(i%200==0):
+            print(f'{i}, perceptual loss = {pls_metric.result():.4f}, discriminator loss = {dls_metric.result():.4f}')
             
-            rand_nums = np.random.randint(0, number_of_train_images, size=batch_size)
+            loss_file = open(model_save_dir + 'losses2.txt' , 'a+')
+            loss_file.write('epoch%d : gan_loss = %s ; discriminator_loss = %f\n' %(e, pls_metric.result(), dls_metric.result()) )
+            loss_file.close()
             
-            
-            image_batch_hr, image_batch_lr = generate_train_batch(x_train, batch_size, rand_nums)
-            generated_images_sr = generator.predict(image_batch_lr)
-            real_data_Y = np.ones(12) - np.random.random_sample(12)*0.2
-            fake_data_Y = np.random.random_sample(12)*0.2
-       
-            discriminator.trainable = True
-            d_loss_real = discriminator.train_on_batch(image_batch_hr, real_data_Y)
-            
-            d_loss_fake = discriminator.train_on_batch(generated_images_sr, fake_data_Y)
-            
-            discriminator_loss = 0.5 * np.add(d_loss_fake, d_loss_real)
-            
-            rand_nums = np.random.randint(0, number_of_train_images, size=batch_size)
-            image_batch_hr, image_batch_lr = generate_train_batch(x_train, batch_size, rand_nums)
-            
-            gan_Y = np.ones(12) - np.random.random_sample(12)*0.2
-            discriminator.trainable = False
-
-            gan_loss = gan.train_on_batch(image_batch_lr, [image_batch_hr,gan_Y])
-            
-           
-            
-        print("discriminator_loss : %f" % discriminator_loss)
-        print("gan_loss :", gan_loss)
-        gan_loss = str(gan_loss)
-        
-        loss_file = open(model_save_dir + 'losses2.txt' , 'a+')
-        loss_file.write('epoch%d : gan_loss = %s ; discriminator_loss = %f\n' %(e, gan_loss, discriminator_loss) )
-        loss_file.close()
-
-        if e == 1 or (e) % 5 == 0:
-            plot_generated_images(output_dir, e, generator, x_test)
-        if (e) % 20 == 0:
-            generator.save(model_save_dir + 'gen_model_dif_%d.h5' % e)
-            discriminator.save(model_save_dir + 'dis_model_dif_%d.h5' % e)
+            pls_metric.reset_states()
+            dls_metric.reset_states()
+        if(i%500==0):
+            plot_generated_images(output_dir, str(i)+' '+str(e), gen, x_test)
+            print('saving img...')
+    if(e%2==0):
+        checkpoint.save(file_prefix = checkpoint_prefix)
+        display.clear_output(wait=True)
 
 if __name__ == "__main__":
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+    # Restrict TensorFlow to only allocate 4GB of memory on the first GPU
+        try:
+            tf.config.experimental.set_virtual_device_configuration(gpus[0],
+            [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=4096)])
+            logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Virtual devices must be set before GPUs have been initialized
+            print(e)
+
     train(3000, 3, 'data', './generated/', './models/saved/', 'number_of_images_in_dataset', 'train_test_ratio')
 

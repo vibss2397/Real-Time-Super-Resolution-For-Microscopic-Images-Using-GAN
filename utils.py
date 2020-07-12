@@ -18,6 +18,7 @@ def patchify(im, patch_shape):
     return np.array(patches)
 
 def unpatchify(patches: np.ndarray, imsize: Tuple[int, int]):
+
     assert len(patches.shape) == 4
     nb_patches_w = imsize[1]//patches.shape[2]
     nb_patches_h = imsize[0]//patches.shape[1]
@@ -38,32 +39,39 @@ def name_to_image(filename, resolution):
     a = np.array(i)
     return a
     
-def normalize(input_data):
-    return (input_data.astype(np.float32) - 127.5)/127.5 
-    
-def denormalize(input_data):
-    input_data = (input_data + 1) * 127.5
-    return input_data.astype(np.uint8)
+def norm(x):
+    return (x - 127.5) / 127.5
 
-def generate_train_batch(x_train, batch_size, rand_nums):
-    train_hr = []
-    train_lr = []
-    
-    for filename in rand_nums:
-        img_patches_hr = patchify(name_to_image(x_train[filename], 1), 256)
-        img_patches_lr = patchify(name_to_image(x_train[filename], (128, 128)), 64)
-        for i in range(img_patches_hr.shape[0]):
-          train_hr.append(img_patches_hr[i])
-          train_lr.append(img_patches_lr[i])
-    return normalize(np.array(train_hr)), normalize(np.array(train_lr))
-  
-def generate_test_batch(x_train, batch_size, rand_nums):
-    train_hr = []
-    train_lr = []
-    for filename in rand_nums:
-        train_hr.append(np.array(name_to_image(x_train[filename], 1)))
-        train_lr.append(np.array(name_to_image(x_train[filename], (128, 128))))
-    return normalize(np.array(train_hr)), normalize(np.array(train_lr))
+
+def denorm(x):
+    return x * 127.5 + 127.5
+
+def generate_train_batch(file_list, batch_size, total_files, counter):
+    global counter, lr_width
+    train_hr, train_lr = [], []
+    if(counter+ batch_size>total_files):
+        counter = 0
+    for file in file_list[counter:counter+batch_size]:
+        hr_data = name_to_image(file, 1)
+        hr_data_patches = patchify(hr_data, lr_width*4)
+        lr_data = name_to_image(file, (image_shape//4, image_shape//4))
+        lr_data_patches = patchify(lr_data, lr_width)
+        
+        for i in range(len(hr_data_patches)):
+            train_hr.append(hr_data_patches[i])
+            train_lr.append(lr_data_patches[i])
+    counter = counter + batch_size
+    return np.array(train_lr), np.array(train_hr)
+
+def generate_test_batch(file_list, nb_images, rand_nums):
+    files = [file_list[i] for i in rand_nums]
+    test_lr, test_hr = [], []
+    for file in files:
+        hr_data = name_to_image(file, 1)
+        lr_data = name_to_image(file, (image_shape//4, image_shape//4))
+        test_hr.append(hr_data)
+        test_lr.append(lr_data)
+    return np.array(test_lr), np.array(test_hr)
 
 def load_data_from_dirs(dirs, ext):
     files = []
@@ -98,36 +106,33 @@ def generate_gif():
         image = imageio.imread(filename)
         writer.append_data(image)
 
-def plot_generated_images(output_dir, epoch, generator, x_test, dim=(1, 4), figsize=(35, 10)):
-   
+def plot_generated_images(output_dir, epoch, generator, lr_width, x_test, dim=(1, 4), figsize=(30, 10)):
     examples = len(x_test)
-    print(examples)
-    
     rand_nums = np.random.randint(0, examples, size=32)
-    x_test_hr, x_test_lr = generate_test_batch(x_test, 16, rand_nums )
-    image_batch_hr = denormalize(x_test_hr)
+    x_test_lr, x_test_hr = generate_test_batch(x_test, 16, rand_nums)
+    image_batch_hr = x_test_hr
     image_batch_lr = x_test_lr
     value = randint(0, 32)
-    img_target = image_batch_lr[value]
-    patches = patchify(img_target, 64)
-    print(patches.shape)
-    gen_img = generator.predict(patches)
-    generated_image = denormalize(gen_img)
-    gen_image_unpatch = np.uint8(unpatchify(generated_image, (512, 512)))
-    image_batch_lr = denormalize(image_batch_lr)
+    img_input = np.float32(image_batch_lr[value])
+    img_input = patchify(img_input, lr_width)
+    img_target = image_batch_hr[value]
+#     print(patches.shape)
+    gen_img = generator(img_input, training=False)
+    gen_img = np.uint8(unpatchify(gen_img, [image_shape, image_shape]))
+#     gen_image_unpatch = np.uint8(unpatchify(generated_image, (512, 512)))
     
     plt.figure(figsize=figsize)
     
     plt.subplot(dim[0], dim[1], 1)
-    plt.imshow(Image.fromarray(image_batch_lr[value]).resize((512, 512), Image.BICUBIC))
+    plt.imshow(Image.fromarray(image_batch_lr[value]).resize((128, 128), Image.BICUBIC))
     plt.axis('off')
     
     plt.subplot(dim[0], dim[1], 2)
-    plt.imshow(Image.fromarray(image_batch_lr[value]).resize((512, 512), Image.NEAREST))
+    plt.imshow(Image.fromarray(image_batch_lr[value]).resize((128, 128), Image.NEAREST))
     plt.axis('off')
         
     plt.subplot(dim[0], dim[1], 3)
-    plt.imshow(gen_image_unpatch)
+    plt.imshow(gen_img.reshape(image_shape, image_shape, 3))
     plt.axis('off')
     
     plt.subplot(dim[0], dim[1], 4)
@@ -135,5 +140,5 @@ def plot_generated_images(output_dir, epoch, generator, x_test, dim=(1, 4), figs
     plt.axis('off')
     
     plt.tight_layout()
-    plt.savefig(output_dir + 'generated_image_diff_%d.png' % epoch)
+    plt.savefig(output_dir + 'generated_image_diff_%s.png' % epoch)
     plt.show()
