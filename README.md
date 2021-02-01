@@ -1,7 +1,7 @@
 # Real Time Super Resolution For Microscopic Images Using GAN
 ---
 
-This project is an application of srgan, a network proposed for obtaining super resolved images given low resolution input. In this project, I aimed to improve the existing architecture and optimize it to give comparable if not better results in ream time.
+This project is an application of srgan, a network proposed for obtaining super resolved images given low resolution input. In this project, I aimed to improve the existing architecture and optimize it to give comparable if not better results in ream time. The paper can be found [here](https://arxiv.org/abs/2010.04634v1)
 
 ### SRGAN Architecture
 ---
